@@ -25,14 +25,26 @@ class MarketResolver:
         markets = response.get("markets", [])
 
         def expiration(market: dict[str, Any]) -> datetime:
-            value = market.get("expiration_time") or market.get("close_time") or "9999-12-31T23:59:59+00:00"
+            value = (
+                market.get("expected_expiration_time")
+                or market.get("occurrence_datetime")
+                or market.get("expiration_time")
+                or market.get("close_time")
+                or "9999-12-31T23:59:59+00:00"
+            )
             try:
                 parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
                 return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
             except ValueError:
                 return datetime.max.replace(tzinfo=timezone.utc)
 
-        return sorted((market for market in markets if isinstance(market, dict)), key=expiration)
+        active_statuses = {"active", "open"}
+        active_markets = (
+            market
+            for market in markets
+            if isinstance(market, dict) and str(market.get("status", "open")).lower() in active_statuses
+        )
+        return sorted(active_markets, key=expiration)
 
     def get_order_book(self, ticker: str) -> dict[str, Any]:
         """Fetch the raw order book for a contract ticker."""

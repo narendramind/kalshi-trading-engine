@@ -13,7 +13,7 @@ from core.risk import RiskManager
 from strategies.base import BaseStrategy
 from strategies.example_strategy import SimpleSpreadStrategy
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s", force=True)
 LOGGER = logging.getLogger(__name__)
 
 
@@ -26,7 +26,10 @@ async def poll_once(resolver: MarketResolver, execution: ExecutionEngine, risk: 
         return
     order_book = await asyncio.to_thread(resolver.get_order_book, ticker)
     signal = strategy.on_tick({"ticker": ticker, "orderbook": order_book})
-    if signal and risk.check_order_allowed(ticker, int(signal["count"])):
+    if not signal:
+        LOGGER.info("No trade signal for %s", ticker)
+        return
+    if risk.check_order_allowed(ticker, int(signal["count"])):
         LOGGER.info("Strategy signal for %s: %s", ticker, signal)
         await asyncio.to_thread(execution.place_order, ticker, signal["action"], signal["side"], signal["count"], signal["price"])
 
@@ -35,6 +38,7 @@ async def run() -> None:
     """Construct dependencies and run until interrupted."""
 
     settings = get_settings()
+    LOGGER.info("Starting Kalshi engine in %s environment (dry_run=True)", settings.kalshi_env)
     client = KalshiClient(settings)
     resolver = MarketResolver(client)
     execution = ExecutionEngine(client, dry_run=True)

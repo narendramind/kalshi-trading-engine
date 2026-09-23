@@ -23,6 +23,19 @@ class RiskManager:
         self.daily_pnl_usd = 0.0
         self.trading_halted = False
 
+    @staticmethod
+    def _position_size(position: dict[str, Any]) -> int:
+        """Normalize common Kalshi position field names to contract count."""
+
+        raw_value = position.get("position")
+        if raw_value is None:
+            raw_value = position.get("position_fp", position.get("count", 0))
+        try:
+            return abs(int(float(raw_value or 0)))
+        except (TypeError, ValueError):
+            LOGGER.warning("Ignoring malformed position payload: %s", position)
+            return 0
+
     def check_order_allowed(self, ticker: str, count: int, positions: list[dict[str, Any]] | None = None) -> bool:
         """Return whether adding ``count`` contracts stays within the ticker limit."""
 
@@ -31,7 +44,7 @@ class RiskManager:
         current = 0
         for position in positions if positions is not None else self.execution.get_open_positions():
             if position.get("ticker") == ticker:
-                current += abs(int(position.get("position", position.get("count", 0)) or 0))
+                current += self._position_size(position)
         allowed = current + count <= self.max_position_size
         if not allowed:
             LOGGER.warning("Order rejected by position limit: %s + %s > %s", current, count, self.max_position_size)

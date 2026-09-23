@@ -22,8 +22,9 @@ class EngineTests(unittest.TestCase):
         client = Mock()
         client.request.return_value = {
             "markets": [
-                {"ticker": "later", "expiration_time": "2026-01-01T00:10:00Z", "close_time": "2026-01-01T00:01:00Z"},
-                {"ticker": "soon", "expiration_time": "2026-01-01T00:05:00Z", "close_time": "2026-01-01T00:04:00Z"},
+                {"ticker": "closed", "status": "closed", "expected_expiration_time": "2026-01-01T00:01:00Z"},
+                {"ticker": "later", "status": "active", "expected_expiration_time": "2026-01-01T00:10:00Z"},
+                {"ticker": "soon", "status": "open", "expected_expiration_time": "2026-01-01T00:05:00Z"},
             ]
         }
         markets = MarketResolver(client).get_active_btc15m_markets()
@@ -49,6 +50,12 @@ class EngineTests(unittest.TestCase):
         manager.update_daily_pnl(-100)
         self.assertTrue(manager.trading_halted)
         self.assertFalse(manager.check_order_allowed("ticker", 1, []))
+
+    def test_risk_manager_adapts_position_fp_contract(self) -> None:
+        settings = Settings(MAX_DAILY_LOSS_USD=100, MAX_POSITION_SIZE=10)
+        manager = RiskManager(settings, Mock())
+        positions = [{"ticker": "ticker", "position_fp": "10.00"}]
+        self.assertFalse(manager.check_order_allowed("ticker", 1, positions))
 
     def test_client_uses_injected_clock_and_private_key(self) -> None:
         from cryptography.hazmat.primitives.asymmetric import rsa
