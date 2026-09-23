@@ -15,6 +15,9 @@ class SimpleSpreadStrategy(BaseStrategy):
             raise ValueError("spread_threshold_cents and order_count must be positive")
         self.spread_threshold_cents = spread_threshold_cents
         self.order_count = order_count
+        self.last_best_bid: int | None = None
+        self.last_best_ask: int | None = None
+        self.last_spread_cents: int | None = None
 
     @staticmethod
     def _price(level: Any, side: str) -> int | None:
@@ -36,17 +39,30 @@ class SimpleSpreadStrategy(BaseStrategy):
         best_bid = max((price for price in (self._price(level, "yes") for level in bids) if price is not None), default=None)
         best_no_ask = max((price for price in (self._price(level, "no") for level in asks) if price is not None), default=None)
         best_ask = 100 - best_no_ask if best_no_ask is not None else None
-        if best_bid is None or best_ask is None or best_ask - best_bid < self.spread_threshold_cents:
+        self.last_best_bid = best_bid
+        self.last_best_ask = best_ask
+        self.last_spread_cents = best_ask - best_bid if best_bid is not None and best_ask is not None else None
+        if self.last_spread_cents is None or self.last_spread_cents < self.spread_threshold_cents:
             return None
         return {
             "action": "buy",
             "side": "yes",
             "count": self.order_count,
             "price": best_bid + 1,
-            "reason": f"spread={best_ask - best_bid}c",
+            "reason": f"spread={self.last_spread_cents}c",
         }
 
     def should_exit(self, position: dict[str, Any]) -> bool:
         """This example has no position-specific exit rule."""
 
         return False
+
+    def get_tick_diagnostics(self) -> dict[str, Any]:
+        """Return the latest spread inputs for operator-facing logs."""
+
+        return {
+            "best_bid_cents": self.last_best_bid,
+            "best_ask_cents": self.last_best_ask,
+            "spread_cents": self.last_spread_cents,
+            "threshold_cents": self.spread_threshold_cents,
+        }

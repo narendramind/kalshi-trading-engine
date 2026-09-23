@@ -14,3 +14,8 @@ class BaseStrategy(ABC):
     @abstractmethod
     def should_exit(self, position: dict[str, Any]) -> bool:
         """Return whether an existing position should be closed."""
+
+    def get_tick_diagnostics(self) -> dict[str, Any]:
+        """Return optional context for observability after the last tick."""
+
+        return {}

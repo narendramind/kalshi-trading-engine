@@ -27,7 +27,7 @@ async def poll_once(resolver: MarketResolver, execution: ExecutionEngine, risk: 
     order_book = await asyncio.to_thread(resolver.get_order_book, ticker)
     signal = strategy.on_tick({"ticker": ticker, "orderbook": order_book})
     if not signal:
-        LOGGER.info("No trade signal for %s", ticker)
+        LOGGER.info("No trade signal for %s: diagnostics=%s", ticker, strategy.get_tick_diagnostics())
         return
     if risk.check_order_allowed(ticker, int(signal["count"])):
         LOGGER.info("Strategy signal for %s: %s", ticker, signal)

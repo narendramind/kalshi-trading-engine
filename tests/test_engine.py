@@ -30,12 +30,27 @@ class EngineTests(unittest.TestCase):
         markets = MarketResolver(client).get_active_btc15m_markets()
         self.assertEqual([market["ticker"] for market in markets], ["soon", "later"])
 
+    def test_market_normalizes_fixed_point_order_book(self) -> None:
+        client = Mock()
+        client.request.return_value = {"orderbook_fp": {"yes_dollars": [["0.4000", "2.00"]], "no_dollars": [["0.5500", "3.00"]]}}
+        book = MarketResolver(client).get_order_book("ticker")
+        self.assertEqual(book, {"yes": [[40, 2]], "no": [[55, 3]]})
+
     def test_strategy_adapts_dict_order_book_levels(self) -> None:
         signal = SimpleSpreadStrategy(spread_threshold_cents=5).on_tick(
             {"orderbook": {"yes": [{"yes_price": 40}], "no": [{"no_price": 55}]}}
         )
         self.assertIsNotNone(signal)
         self.assertEqual(signal["price"], 41)
+
+    def test_strategy_exposes_no_signal_diagnostics(self) -> None:
+        strategy = SimpleSpreadStrategy(spread_threshold_cents=5)
+        signal = strategy.on_tick({"orderbook": {"yes": [[40, 1]], "no": [[58, 1]]}})
+        self.assertIsNone(signal)
+        self.assertEqual(strategy.last_best_bid, 40)
+        self.assertEqual(strategy.last_best_ask, 42)
+        self.assertEqual(strategy.last_spread_cents, 2)
+        self.assertEqual(strategy.get_tick_diagnostics()["spread_cents"], 2)
 
     def test_dry_run_order_does_not_call_client(self) -> None:
         client = Mock()
